@@ -4,8 +4,6 @@ use std::path::PathBuf;
 /// Raw input from Claude Code hook on stdin
 #[derive(Debug, Deserialize)]
 pub struct HookInput {
-    #[allow(dead_code)] // Part of Claude Code hook protocol, deserialized but not used
-    pub session_id: String,
     pub tool_name: String,
     pub tool_input: ToolInput,
 }
