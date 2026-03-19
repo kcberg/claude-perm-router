@@ -1,5 +1,5 @@
-use claude_perm_router::matcher::{match_rule, evaluate_segment};
-use claude_perm_router::types::{Permissions, SegmentResult};
+use claude_perm_router::matcher::{match_rule, evaluate_segment, aggregate};
+use claude_perm_router::types::{Permissions, PermissionDecision, SegmentResult};
 use std::path::PathBuf;
 
 #[test]
@@ -127,4 +127,85 @@ fn only_non_bash_rules_unresolved() {
     // Only non-Bash rules present — nothing matches
     let result = evaluate_segment("git status", &perms);
     assert!(matches!(result, SegmentResult::Unresolved));
+}
+
+#[test]
+fn aggregate_all_allowed() {
+    let results = vec![
+        SegmentResult::Allowed {
+            rule: "Bash(git *)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+        SegmentResult::Allowed {
+            rule: "Bash(./gradlew:*)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+    ];
+    let (decision, _reason) = aggregate(&results).unwrap();
+    assert_eq!(decision, PermissionDecision::Allow);
+}
+
+#[test]
+fn aggregate_one_denied() {
+    let results = vec![
+        SegmentResult::Allowed {
+            rule: "Bash(git *)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+        SegmentResult::Denied {
+            rule: "Bash(rm:*)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+    ];
+    let (decision, _reason) = aggregate(&results).unwrap();
+    assert_eq!(decision, PermissionDecision::Deny);
+}
+
+#[test]
+fn aggregate_one_unresolved_falls_through() {
+    let results = vec![
+        SegmentResult::Allowed {
+            rule: "Bash(git *)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+        SegmentResult::Unresolved,
+    ];
+    assert!(aggregate(&results).is_none());
+}
+
+#[test]
+fn aggregate_ask_with_allowed() {
+    let results = vec![
+        SegmentResult::Allowed {
+            rule: "Bash(git *)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+        SegmentResult::Ask {
+            rule: "Bash(npm publish)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+    ];
+    let (decision, _reason) = aggregate(&results).unwrap();
+    assert_eq!(decision, PermissionDecision::Ask);
+}
+
+#[test]
+fn aggregate_deny_beats_ask() {
+    let results = vec![
+        SegmentResult::Ask {
+            rule: "Bash(npm publish)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+        SegmentResult::Denied {
+            rule: "Bash(rm:*)".into(),
+            settings_path: "/r/.claude".into(),
+        },
+    ];
+    let (decision, _reason) = aggregate(&results).unwrap();
+    assert_eq!(decision, PermissionDecision::Deny);
+}
+
+#[test]
+fn aggregate_empty_falls_through() {
+    assert!(aggregate(&[]).is_none());
 }

@@ -1,4 +1,4 @@
-use crate::types::{Permissions, SegmentResult};
+use crate::types::{PermissionDecision, Permissions, SegmentResult};
 
 /// Match an effective command against a permission rule pattern.
 ///
@@ -78,4 +78,61 @@ pub fn evaluate_segment(command: &str, permissions: &Permissions) -> SegmentResu
 
     // 4. No match
     SegmentResult::Unresolved
+}
+
+/// Aggregate per-segment results into a final decision.
+/// Returns None for fall-through (no output).
+pub fn aggregate(results: &[SegmentResult]) -> Option<(PermissionDecision, String)> {
+    if results.is_empty() {
+        return None;
+    }
+
+    // 1. Any denied → deny
+    for r in results {
+        if let SegmentResult::Denied { rule, settings_path } = r {
+            let reason = format!(
+                "Denied: matched '{}' in {}",
+                rule,
+                settings_path.display()
+            );
+            return Some((PermissionDecision::Deny, reason));
+        }
+    }
+
+    // 2. Any unresolved → fall through
+    if results.iter().any(|r| matches!(r, SegmentResult::Unresolved)) {
+        return None;
+    }
+
+    // 3. Any ask → ask
+    for r in results {
+        if let SegmentResult::Ask { rule, settings_path } = r {
+            let reason = format!(
+                "Ask: matched '{}' in {}",
+                rule,
+                settings_path.display()
+            );
+            return Some((PermissionDecision::Ask, reason));
+        }
+    }
+
+    // 4. All allowed
+    let reasons: Vec<String> = results
+        .iter()
+        .filter_map(|r| {
+            if let SegmentResult::Allowed { rule, settings_path } = r {
+                Some(format!("'{}' in {}", rule, settings_path.display()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let reason = format!(
+        "All {} segment(s) allowed: {}",
+        results.len(),
+        reasons.join("; ")
+    );
+
+    Some((PermissionDecision::Allow, reason))
 }
