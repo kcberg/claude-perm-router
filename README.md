@@ -4,28 +4,36 @@ Per-directory permission routing for Claude Code Bash commands.
 
 When you use `--add-dir` to work across multiple repos, Claude Code's built-in tools (Read, Grep, etc.) respect each directory's permissions. But Bash commands like `cd /other/repo && ./gradlew test` don't — they all use the main project's permissions. This hook fixes that.
 
-## Quick Start
+## Install
+
+### One-liner (recommended)
 
 ```bash
-# Clone and build
-git clone https://github.com/yourusername/claude-perm-router.git
+curl -fsSL https://raw.githubusercontent.com/kcberg/claude-perm-router/main/install-release.sh | bash
+```
+
+This detects your platform (macOS ARM, Linux x86_64/ARM), downloads the latest release binary to `~/.claude/bin/`, and offers to configure the hook.
+
+### From source
+
+If you prefer to build it yourself:
+
+```bash
+git clone https://github.com/kcberg/claude-perm-router.git
 cd claude-perm-router
 ./install.sh
 ```
 
-The install script builds the release binary, copies it to `~/.claude/bin/`, and offers to configure the hook in `~/.claude/settings.json`.
-
-### Manual Setup
-
-If you prefer to set things up yourself:
+### Manual setup
 
 ```bash
-cargo build --release
-mkdir -p ~/.claude/bin
-cp target/release/claude-perm-router ~/.claude/bin/
+# Download a specific release binary (example: macOS ARM)
+curl -fsSL https://github.com/kcberg/claude-perm-router/releases/latest/download/claude-perm-router-macos-aarch64 \
+  -o ~/.claude/bin/claude-perm-router
+chmod +x ~/.claude/bin/claude-perm-router
 ```
 
-Then add this to `~/.claude/settings.json`:
+Then add this hook to `~/.claude/settings.json`:
 
 ```json
 {
@@ -47,6 +55,14 @@ Then add this to `~/.claude/settings.json`:
 ```
 
 If you already have hooks configured, merge the `PreToolUse` entry into your existing hooks object.
+
+### Available binaries
+
+| Platform | Binary |
+|---|---|
+| macOS (Apple Silicon) | `claude-perm-router-macos-aarch64` |
+| Linux (x86_64) | `claude-perm-router-linux-x86_64` |
+| Linux (ARM64) | `claude-perm-router-linux-aarch64` |
 
 ## How It Works
 
