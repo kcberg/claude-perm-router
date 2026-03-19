@@ -1,19 +1,20 @@
+use crate::find_project_root;
 use crate::types::Permissions;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Walk up from `start_dir` to find the nearest `.claude/` directory,
 /// then load and merge `settings.json` and `settings.local.json`.
 /// Returns None if no `.claude/` directory is found.
 pub fn load_permissions(start_dir: &Path) -> Option<Permissions> {
-    let claude_dir = find_claude_dir(start_dir)?;
-    let settings_path = claude_dir.clone();
+    let project_root = find_project_root(start_dir)?;
+    let claude_dir = project_root.join(".claude");
 
     let project = load_file(&claude_dir.join("settings.json"));
     let local = load_file(&claude_dir.join("settings.local.json"));
 
     if project.is_none() && local.is_none() {
         return Some(Permissions {
-            settings_path,
+            settings_path: claude_dir,
             ..Default::default()
         });
     }
@@ -32,22 +33,8 @@ pub fn load_permissions(start_dir: &Path) -> Option<Permissions> {
         allow,
         deny,
         ask,
-        settings_path,
+        settings_path: claude_dir,
     })
-}
-
-/// Walk up from a directory to find the nearest ancestor containing .claude/
-fn find_claude_dir(start: &Path) -> Option<PathBuf> {
-    let mut dir = start.to_path_buf();
-    loop {
-        let candidate = dir.join(".claude");
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-        if !dir.pop() {
-            return None;
-        }
-    }
 }
 
 /// Parsed permission arrays from a single settings file

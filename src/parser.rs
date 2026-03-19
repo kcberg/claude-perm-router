@@ -1,3 +1,4 @@
+use crate::find_project_root;
 use crate::types::EvaluatedSegment;
 use std::path::PathBuf;
 
@@ -131,13 +132,8 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
             // cd updates accumulator, not returned as a segment
             if path.starts_with('/') {
                 accumulator = try_canonicalize(&PathBuf::from(&path));
-            } else if path == ".." || path == "-" || path.starts_with("..") {
-                // Relative paths — resolve against accumulator or CWD
-                let base = accumulator.take().or_else(|| std::env::current_dir().ok());
-                if let Some(base) = base {
-                    accumulator = try_canonicalize(&base.join(&path));
-                }
             } else if !path.is_empty() {
+                // Relative paths — resolve against accumulator or CWD
                 let base = accumulator.take().or_else(|| std::env::current_dir().ok());
                 if let Some(base) = base {
                     accumulator = try_canonicalize(&base.join(&path));
@@ -205,9 +201,13 @@ fn parse_cd(segment: &str) -> Option<String> {
 /// Returns (target_dir, effective_cmd) or None if not a git -C command.
 /// Handles quoted paths (e.g., `git -C "/path with spaces" status`).
 fn parse_git_c(segment: &str, accumulator: &Option<PathBuf>) -> Option<(Option<PathBuf>, String)> {
+    // Fast pre-check to avoid split_words allocation for non-git segments
+    if !segment.starts_with("git ") {
+        return None;
+    }
     let words = split_words(segment);
     // Need at least: git -C <path> <subcmd>
-    if words.len() >= 4 && words[0] == "git" && words[1] == "-C" {
+    if words.len() >= 4 && words[1] == "-C" {
         let path = unquote(&words[2]);
         let subcmd = words[3..].join(" ");
         let effective_cmd = format!("git {subcmd}");
@@ -286,7 +286,7 @@ fn parse_absolute_executable(segment: &str) -> Option<(Option<PathBuf>, String)>
 
     // Walk up from executable's parent to find .claude/
     let parent = executable_path.parent()?;
-    let target_dir = find_claude_dir(parent).and_then(|p| try_canonicalize(&p));
+    let target_dir = find_project_root(parent).and_then(|p| try_canonicalize(&p));
 
     let basename = executable_path.file_name()?.to_str()?;
     let effective_cmd = if parts.len() > 1 {
@@ -304,15 +304,3 @@ fn try_canonicalize(path: &std::path::Path) -> Option<PathBuf> {
     std::fs::canonicalize(path).ok()
 }
 
-/// Walk up from a directory to find the nearest ancestor containing .claude/
-fn find_claude_dir(start: &std::path::Path) -> Option<PathBuf> {
-    let mut dir = start.to_path_buf();
-    loop {
-        if dir.join(".claude").is_dir() {
-            return Some(dir);
-        }
-        if !dir.pop() {
-            return None;
-        }
-    }
-}

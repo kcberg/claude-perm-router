@@ -17,8 +17,9 @@ pub fn match_rule(pattern: &str, command: &str) -> bool {
 
     // Check for trailing " *" (space-star prefix match)
     if let Some(prefix) = pattern.strip_suffix(" *") {
-        let prefix_with_space = format!("{prefix} ");
-        return command.starts_with(&prefix_with_space) || command == prefix;
+        return command == prefix
+            || (command.starts_with(prefix)
+                && command.as_bytes().get(prefix.len()) == Some(&b' '));
     }
 
     // Exact match (any remaining * is literal)
