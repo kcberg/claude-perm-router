@@ -59,16 +59,16 @@ After trimming whitespace, each segment is classified as:
 
 - **`cd <path>`** — Updates the directory accumulator. Not itself evaluated against permissions.
 - **`git -C <path> <subcmd>`** — Has its own target directory (independent of the accumulator). Effective command is `git <subcmd>`.
-- **Absolute executable** (e.g., `/foo/bar/build/dist/hawk scan`) — Target directory found by walking up from the executable's parent to find the nearest `.claude/` directory. Effective command is the basename portion.
+- **Absolute executable** (e.g., `/foo/bar/build/dist/hawk scan`) — Target directory found by walking up from the executable's parent to find the nearest `.claude/` directory. If no `.claude/` is found, the segment is unresolved (falls through). Effective command is the basename of the executable plus all trailing arguments (e.g., `/foo/bar/dist/hawk scan` → effective command is `hawk scan`).
 - **Plain command** — Uses the current directory accumulator. If accumulator is empty (no `cd` seen), this segment has no target directory.
 
 ### Step 3: Directory accumulator rules
 
 - `cd /absolute/path` — Sets accumulator to that path.
-- `cd relative/path` — Appends to current accumulator. If accumulator is empty (no prior `cd`, CWD unknown), this has no effect — segment treated as having no target directory.
+- `cd relative/path` — Appends to current accumulator. If accumulator is empty (no prior `cd`, CWD unknown), this has no effect — segment treated as having no target directory. This includes `cd ..` and `cd -`, which are unresolvable without CWD.
 - Accumulator carries across `&&`, `||`, `;` boundaries.
-- Pipes inherit the accumulator of their parent chain segment.
-- `git -C` does NOT affect the accumulator — it's self-contained.
+- All segments in a pipe chain inherit the directory from the last chain-operator segment preceding the pipe. After the pipe group ends, the accumulator resumes from the pre-pipe state.
+- `git -C` does NOT affect the accumulator — it's self-contained. If the `-C` path is relative, it is resolved against the current directory accumulator. If the accumulator is empty, the segment is treated as having no target directory.
 
 ### Output
 
@@ -95,12 +95,14 @@ Extract `permissions.allow`, `permissions.deny`, and `permissions.ask` arrays fr
 
 ### Rule syntax
 
-Each rule is a string like `Bash(pattern)`. Non-`Bash(...)` rules are ignored.
+Each rule is a string like `Bash(pattern)`. Non-`Bash(...)` rules are ignored. If `tool_name` is not `Bash`, output nothing and exit 0 (fall-through).
 
-The inner pattern is matched against the effective command:
-- `./gradlew:*` — `:*` suffix means prefix match. Matches any command starting with `./gradlew`.
-- `./gradlew test` — No wildcard. Exact match only.
+The inner pattern is matched against the effective command. There are two wildcard forms — both exist because Claude Code's own permission syntax uses both conventions:
+
+- `./gradlew:*` — `:*` suffix means prefix match. The `:` is a separator; matches any command starting with `./gradlew` (e.g., `./gradlew test`, `./gradlew build`).
 - `git *` — Trailing ` *` (space-star) means prefix match. Matches `git status`, `git push`, etc.
+- `./gradlew test` — No wildcard. Exact match only.
+- `*` appearing in any other position is treated as a literal character.
 
 ### Per-segment evaluation order
 
@@ -110,6 +112,8 @@ The inner pattern is matched against the effective command:
 4. No match — segment is **unresolved**
 
 ### Cross-segment aggregation
+
+Each segment's result is determined by per-segment evaluation before aggregation begins.
 
 1. If ANY segment is **denied** → entire command is **denied**. Reason identifies which segment and rule.
 2. If ANY segment is **unresolved** (no target dir, no `.claude/` found, or no rule matched) → entire command **falls through** (no output, exit 0).
@@ -141,7 +145,7 @@ claude-perm-router/
 
 ## Performance
 
-- Must complete in <50ms for typical cases
+- Must complete in <50ms for typical cases (steady-state). The 5-second hook timeout provides headroom for cold starts and slow filesystem traversal.
 - Read settings files on every invocation (no caching) — they may change mid-session
 - Parse only what's needed from JSON
 
@@ -154,18 +158,26 @@ claude-perm-router/
 4. `cd /foo && cmd1 | cmd2` → pipe inherits /foo for both
 5. `git -C /foo status` → segment: dir=/foo, cmd=`git status`
 6. `git -C /foo status && git -C /bar push` → two segments with independent dirs
-7. `/foo/bar/build/dist/hawk scan` → walk up from /foo/bar/build/dist for .claude/
-8. `./gradlew test` (no directory context) → no target dir, falls through
-9. `cd /foo && cd bar && ls` → accumulates to /foo/bar, cmd=`ls`
-10. `echo "hello && world"` → not split on quoted `&&`
+7. `/foo/bar/build/dist/hawk scan` → walk up from /foo/bar/build/dist for .claude/, effective cmd=`hawk scan`
+8. `/foo/bar/build/dist/hawk scan` with no .claude/ found → segment is unresolved
+9. `./gradlew test` (no directory context) → no target dir, falls through
+10. `cd /foo && cd bar && ls` → accumulates to /foo/bar, cmd=`ls`
+11. `echo "hello && world"` → not split on quoted `&&`
+12. `cd /foo && cmd1 | cmd2 | cmd3 && cmd4` → cmd1/cmd2/cmd3 all use /foo (pipe inheritance), cmd4 also uses /foo
+13. `cd /foo && git -C ../bar status` → git -C resolved to /bar (relative to accumulator /foo)
+14. `git -C ../bar status` (no accumulator) → no target dir, unresolved
+15. `cd .. && ls` (no prior absolute cd) → cd .. unresolvable, no target dir
 
 ### Matcher tests
 1. `./gradlew test` matches `Bash(./gradlew:*)` → allow
 2. `./gradlew test` matches `Bash(./gradlew test)` → allow (exact)
 3. `git status` matches `Bash(git *)` → allow
 4. `git push --force` matches deny `Bash(git push:*)` → deny
-5. Deny takes precedence over allow when both match
+5. `git push` in both deny `Bash(git push:*)` and allow `Bash(git *)` → deny (deny takes precedence per per-segment evaluation order)
 6. No match → unresolved
+7. `npm publish` matches ask rule `Bash(npm publish)` → ask
+8. `:*` and ` *` rules in same list both work correctly
+9. `*` in middle of pattern (e.g., `Bash(foo*bar)`) is treated as literal
 
 ### Integration tests
 1. `cd /repo && ./gradlew test` where repo allows `Bash(./gradlew:*)` → allow
@@ -177,6 +189,8 @@ claude-perm-router/
 7. `git -C /repo status` → evaluated against /repo
 8. `cd /repo1 && ./gradlew test && cd /repo2 && npm publish` where repo1 allows gradlew and repo2 denies npm publish → deny
 9. Mixed scope: one segment has `.claude/`, another doesn't → fall through
+10. `cd /repo && npm publish` where repo has `npm publish` in ask list → ask
+11. Non-Bash tool_name in input → no output, fall through
 
 ## Installation
 
