@@ -130,15 +130,15 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
         if let Some(path) = parse_cd(text) {
             // cd updates accumulator, not returned as a segment
             if path.starts_with('/') {
-                accumulator = Some(PathBuf::from(path));
+                accumulator = Some(PathBuf::from(&path));
             } else if path == ".." || path == "-" || path.starts_with("..") {
                 // Relative paths that need CWD to resolve
                 if let Some(acc) = accumulator {
-                    accumulator = Some(acc.join(path));
+                    accumulator = Some(acc.join(&path));
                 }
                 // If no accumulator, leave it as None (unresolvable)
             } else if let Some(acc) = accumulator {
-                accumulator = Some(acc.join(path));
+                accumulator = Some(acc.join(&path));
             }
             // If no accumulator and relative path, do nothing
             continue;
@@ -174,13 +174,25 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
 }
 
 /// Extract path from a `cd <path>` command. Returns None if not a cd command.
-fn parse_cd(segment: &str) -> Option<&str> {
+/// Handles tilde expansion and quoted paths.
+fn parse_cd(segment: &str) -> Option<String> {
     let trimmed = segment.trim();
     if trimmed == "cd" {
-        return Some(""); // bare cd, no path
+        return Some(String::new()); // bare cd, no path
     }
     if let Some(rest) = trimmed.strip_prefix("cd ") {
-        Some(rest.trim())
+        let path = unquote(rest.trim());
+        // Expand ~ to home directory
+        if path == "~" {
+            if let Some(home) = std::env::var_os("HOME") {
+                return Some(home.to_string_lossy().into_owned());
+            }
+        } else if let Some(rest) = path.strip_prefix("~/") {
+            if let Some(home) = std::env::var_os("HOME") {
+                return Some(format!("{}/{rest}", home.to_string_lossy()));
+            }
+        }
+        Some(path)
     } else {
         None
     }
@@ -249,10 +261,11 @@ fn split_words(s: &str) -> Vec<String> {
 
 /// Remove surrounding quotes from a string if present.
 fn unquote(s: &str) -> String {
-    if (s.starts_with('"') && s.ends_with('"'))
-        || (s.starts_with('\'') && s.ends_with('\''))
-    {
-        s[1..s.len() - 1].to_string()
+    let s = s.trim();
+    if let Some(inner) = s.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+        inner.to_string()
+    } else if let Some(inner) = s.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+        inner.to_string()
     } else {
         s.to_string()
     }

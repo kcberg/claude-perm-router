@@ -1,10 +1,7 @@
-mod matcher;
-mod parser;
-mod settings;
-mod types;
-
 use std::io::Read;
-use types::{HookInput, HookOutput};
+
+use claude_perm_router::types::{HookInput, HookOutput, SegmentResult};
+use claude_perm_router::{matcher, parser, settings};
 
 fn main() {
     let result = run();
@@ -55,30 +52,23 @@ fn run() -> Result<Option<HookOutput>, Box<dyn std::error::Error>> {
     for segment in &segments {
         match &segment.target_dir {
             None => {
-                // No target directory — unresolved
-                results.push(types::SegmentResult::Unresolved);
+                results.push(SegmentResult::Unresolved);
             }
-            Some(dir) => {
-                match settings::load_permissions(dir) {
-                    None => {
-                        // No .claude/ found — unresolved
-                        results.push(types::SegmentResult::Unresolved);
-                    }
-                    Some(perms) => {
-                        let result =
-                            matcher::evaluate_segment(&segment.effective_cmd, &perms);
-                        results.push(result);
-                    }
+            Some(dir) => match settings::load_permissions(dir) {
+                None => {
+                    results.push(SegmentResult::Unresolved);
                 }
-            }
+                Some(perms) => {
+                    let result = matcher::evaluate_segment(&segment.effective_cmd, &perms);
+                    results.push(result);
+                }
+            },
         }
     }
 
     // Aggregate results
     match matcher::aggregate(&results) {
-        Some((decision, reason)) => {
-            Ok(Some(HookOutput::new(decision, reason)))
-        }
+        Some((decision, reason)) => Ok(Some(HookOutput::new(decision, reason))),
         None => Ok(None),
     }
 }
