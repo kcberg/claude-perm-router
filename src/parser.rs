@@ -130,15 +130,15 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
         if let Some(path) = parse_cd(text) {
             // cd updates accumulator, not returned as a segment
             if path.starts_with('/') {
-                accumulator = Some(PathBuf::from(&path));
+                accumulator = try_canonicalize(&PathBuf::from(&path));
             } else if path == ".." || path == "-" || path.starts_with("..") {
                 // Relative paths that need CWD to resolve
                 if let Some(acc) = accumulator {
-                    accumulator = Some(acc.join(&path));
+                    accumulator = try_canonicalize(&acc.join(&path));
                 }
                 // If no accumulator, leave it as None (unresolvable)
             } else if let Some(acc) = accumulator {
-                accumulator = Some(acc.join(&path));
+                accumulator = try_canonicalize(&acc.join(&path));
             }
             // If no accumulator and relative path, do nothing
             continue;
@@ -210,9 +210,9 @@ fn parse_git_c(segment: &str, accumulator: &Option<PathBuf>) -> Option<(Option<P
         let effective_cmd = format!("git {subcmd}");
 
         let target_dir = if path.starts_with('/') {
-            Some(PathBuf::from(&path))
+            try_canonicalize(&PathBuf::from(&path))
         } else if let Some(acc) = accumulator {
-            Some(acc.join(&path))
+            try_canonicalize(&acc.join(&path))
         } else {
             None // relative path with no accumulator
         };
@@ -283,7 +283,7 @@ fn parse_absolute_executable(segment: &str) -> Option<(Option<PathBuf>, String)>
 
     // Walk up from executable's parent to find .claude/
     let parent = executable_path.parent()?;
-    let target_dir = find_claude_dir(parent);
+    let target_dir = find_claude_dir(parent).and_then(|p| try_canonicalize(&p));
 
     let basename = executable_path.file_name()?.to_str()?;
     let effective_cmd = if parts.len() > 1 {
@@ -293,6 +293,12 @@ fn parse_absolute_executable(segment: &str) -> Option<(Option<PathBuf>, String)>
     };
 
     Some((target_dir, effective_cmd))
+}
+
+/// Try to canonicalize a path, resolving `..`, symlinks, etc.
+/// Returns None if the path doesn't exist on disk.
+fn try_canonicalize(path: &std::path::Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path).ok()
 }
 
 /// Walk up from a directory to find the nearest ancestor containing .claude/
