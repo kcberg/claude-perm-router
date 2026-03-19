@@ -198,9 +198,15 @@ fn parse_git_c_relative_no_accumulator() {
 
 #[test]
 fn parse_cd_dotdot_no_accumulator() {
+    // cd .. with no prior absolute cd resolves against CWD
     let segs = parse_command("cd .. && ls");
     assert_eq!(segs.len(), 1);
-    assert_eq!(segs[0].target_dir, None);
+    // Should resolve to parent of CWD
+    let expected = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| cwd.parent().map(|p| p.to_path_buf()))
+        .and_then(|p| p.canonicalize().ok());
+    assert_eq!(segs[0].target_dir, expected);
 }
 
 #[test]

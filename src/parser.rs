@@ -132,13 +132,16 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
             if path.starts_with('/') {
                 accumulator = try_canonicalize(&PathBuf::from(&path));
             } else if path == ".." || path == "-" || path.starts_with("..") {
-                // Relative paths that need CWD to resolve
-                if let Some(acc) = accumulator {
-                    accumulator = try_canonicalize(&acc.join(&path));
+                // Relative paths — resolve against accumulator or CWD
+                let base = accumulator.take().or_else(|| std::env::current_dir().ok());
+                if let Some(base) = base {
+                    accumulator = try_canonicalize(&base.join(&path));
                 }
-                // If no accumulator, leave it as None (unresolvable)
-            } else if let Some(acc) = accumulator {
-                accumulator = try_canonicalize(&acc.join(&path));
+            } else if !path.is_empty() {
+                let base = accumulator.take().or_else(|| std::env::current_dir().ok());
+                if let Some(base) = base {
+                    accumulator = try_canonicalize(&base.join(&path));
+                }
             }
             // If no accumulator and relative path, do nothing
             continue;
