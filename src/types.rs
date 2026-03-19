@@ -68,15 +68,6 @@ pub enum SegmentResult {
     Unresolved,
 }
 
-/// Which shell operator preceded a segment
-#[derive(Debug, Clone, PartialEq)]
-pub enum Operator {
-    /// First segment or after &&, ||, ;
-    Chain,
-    /// After |
-    Pipe,
-}
-
 /// A parsed command segment with its resolved directory and effective command
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvaluatedSegment {

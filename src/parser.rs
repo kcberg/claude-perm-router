@@ -108,9 +108,23 @@ pub fn parse_command(cmd: &str) -> Vec<EvaluatedSegment> {
     let raw_segments = split_command(cmd);
     let mut result = Vec::new();
     let mut accumulator: Option<PathBuf> = None;
+    // Save accumulator state before entering a pipe group so we can restore it after
+    let mut pre_pipe_accumulator: Option<PathBuf> = None;
+    let mut in_pipe_group = false;
 
     for raw in &raw_segments {
         let text = raw.text.trim();
+
+        // Track pipe group transitions
+        if raw.is_pipe && !in_pipe_group {
+            // Entering a pipe group — save accumulator
+            pre_pipe_accumulator = accumulator.clone();
+            in_pipe_group = true;
+        } else if !raw.is_pipe && in_pipe_group {
+            // Leaving a pipe group — restore accumulator
+            accumulator = pre_pipe_accumulator.take();
+            in_pipe_group = false;
+        }
 
         // Classify the segment
         if let Some(path) = parse_cd(text) {
