@@ -1,5 +1,5 @@
-use claude_perm_router::matcher::{match_rule, evaluate_segment, aggregate};
-use claude_perm_router::types::{Permissions, PermissionDecision, SegmentResult};
+use claude_perm_router::matcher::{aggregate, evaluate_segment, match_rule};
+use claude_perm_router::types::{PermissionDecision, Permissions, SegmentResult};
 use std::path::PathBuf;
 
 #[test]

@@ -30,10 +30,10 @@ pub fn match_rule(pattern: &str, command: &str) -> bool {
 /// Returns None if the rule is not a Bash rule.
 fn extract_bash_pattern(rule: &str) -> Option<&str> {
     let trimmed = rule.trim();
-    if let Some(inner) = trimmed.strip_prefix("Bash(") {
-        if let Some(pattern) = inner.strip_suffix(')') {
-            return Some(pattern);
-        }
+    if let Some(inner) = trimmed.strip_prefix("Bash(")
+        && let Some(pattern) = inner.strip_suffix(')')
+    {
+        return Some(pattern);
     }
     None
 }
@@ -43,37 +43,37 @@ fn extract_bash_pattern(rule: &str) -> Option<&str> {
 pub fn evaluate_segment(command: &str, permissions: &Permissions) -> SegmentResult {
     // 1. Check deny
     for rule in &permissions.deny {
-        if let Some(pattern) = extract_bash_pattern(rule) {
-            if match_rule(pattern, command) {
-                return SegmentResult::Denied {
-                    rule: rule.clone(),
-                    settings_path: permissions.settings_path.clone(),
-                };
-            }
+        if let Some(pattern) = extract_bash_pattern(rule)
+            && match_rule(pattern, command)
+        {
+            return SegmentResult::Denied {
+                rule: rule.clone(),
+                settings_path: permissions.settings_path.clone(),
+            };
         }
     }
 
     // 2. Check allow
     for rule in &permissions.allow {
-        if let Some(pattern) = extract_bash_pattern(rule) {
-            if match_rule(pattern, command) {
-                return SegmentResult::Allowed {
-                    rule: rule.clone(),
-                    settings_path: permissions.settings_path.clone(),
-                };
-            }
+        if let Some(pattern) = extract_bash_pattern(rule)
+            && match_rule(pattern, command)
+        {
+            return SegmentResult::Allowed {
+                rule: rule.clone(),
+                settings_path: permissions.settings_path.clone(),
+            };
         }
     }
 
     // 3. Check ask
     for rule in &permissions.ask {
-        if let Some(pattern) = extract_bash_pattern(rule) {
-            if match_rule(pattern, command) {
-                return SegmentResult::Ask {
-                    rule: rule.clone(),
-                    settings_path: permissions.settings_path.clone(),
-                };
-            }
+        if let Some(pattern) = extract_bash_pattern(rule)
+            && match_rule(pattern, command)
+        {
+            return SegmentResult::Ask {
+                rule: rule.clone(),
+                settings_path: permissions.settings_path.clone(),
+            };
         }
     }
 
@@ -90,29 +90,32 @@ pub fn aggregate(results: &[SegmentResult]) -> Option<(PermissionDecision, Strin
 
     // 1. Any denied → deny
     for r in results {
-        if let SegmentResult::Denied { rule, settings_path } = r {
-            let reason = format!(
-                "Denied: matched '{}' in {}",
-                rule,
-                settings_path.display()
-            );
+        if let SegmentResult::Denied {
+            rule,
+            settings_path,
+        } = r
+        {
+            let reason = format!("Denied: matched '{}' in {}", rule, settings_path.display());
             return Some((PermissionDecision::Deny, reason));
         }
     }
 
     // 2. Any unresolved → fall through
-    if results.iter().any(|r| matches!(r, SegmentResult::Unresolved)) {
+    if results
+        .iter()
+        .any(|r| matches!(r, SegmentResult::Unresolved))
+    {
         return None;
     }
 
     // 3. Any ask → ask
     for r in results {
-        if let SegmentResult::Ask { rule, settings_path } = r {
-            let reason = format!(
-                "Ask: matched '{}' in {}",
-                rule,
-                settings_path.display()
-            );
+        if let SegmentResult::Ask {
+            rule,
+            settings_path,
+        } = r
+        {
+            let reason = format!("Ask: matched '{}' in {}", rule, settings_path.display());
             return Some((PermissionDecision::Ask, reason));
         }
     }
@@ -121,7 +124,11 @@ pub fn aggregate(results: &[SegmentResult]) -> Option<(PermissionDecision, Strin
     let reasons: Vec<String> = results
         .iter()
         .filter_map(|r| {
-            if let SegmentResult::Allowed { rule, settings_path } = r {
+            if let SegmentResult::Allowed {
+                rule,
+                settings_path,
+            } = r
+            {
                 Some(format!("'{}' in {}", rule, settings_path.display()))
             } else {
                 None

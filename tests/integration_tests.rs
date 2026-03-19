@@ -62,10 +62,7 @@ fn integration_allow() {
     let (stdout, code) = run_hook("Bash", &cmd);
     assert_eq!(code, 0);
     let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(
-        output["hookSpecificOutput"]["permissionDecision"],
-        "allow"
-    );
+    assert_eq!(output["hookSpecificOutput"]["permissionDecision"], "allow");
 }
 
 #[test]
@@ -113,10 +110,7 @@ fn integration_chained_same_repo() {
     let (stdout, code) = run_hook("Bash", &cmd);
     assert_eq!(code, 0);
     let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(
-        output["hookSpecificOutput"]["permissionDecision"],
-        "allow"
-    );
+    assert_eq!(output["hookSpecificOutput"]["permissionDecision"], "allow");
 }
 
 #[test]
@@ -127,10 +121,7 @@ fn integration_git_c() {
     let (stdout, code) = run_hook("Bash", &cmd);
     assert_eq!(code, 0);
     let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(
-        output["hookSpecificOutput"]["permissionDecision"],
-        "allow"
-    );
+    assert_eq!(output["hookSpecificOutput"]["permissionDecision"], "allow");
 }
 
 #[test]

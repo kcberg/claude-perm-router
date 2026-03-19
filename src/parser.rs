@@ -42,8 +42,7 @@ pub fn split_command(cmd: &str) -> Vec<RawSegment> {
         if !in_single_quote && !in_double_quote {
             // Check for && or ||
             if i + 1 < len
-                && ((c == '&' && chars[i + 1] == '&')
-                    || (c == '|' && chars[i + 1] == '|'))
+                && ((c == '&' && chars[i + 1] == '&') || (c == '|' && chars[i + 1] == '|'))
             {
                 let trimmed = current.trim().to_string();
                 if !trimmed.is_empty() {
@@ -182,14 +181,14 @@ fn parse_cd(segment: &str) -> Option<String> {
     if let Some(rest) = trimmed.strip_prefix("cd ") {
         let path = unquote(rest.trim());
         // Expand ~ to home directory
-        if path == "~" {
-            if let Some(home) = std::env::var_os("HOME") {
-                return Some(home.to_string_lossy().into_owned());
-            }
-        } else if let Some(rest) = path.strip_prefix("~/") {
-            if let Some(home) = std::env::var_os("HOME") {
-                return Some(format!("{}/{rest}", home.to_string_lossy()));
-            }
+        if path == "~"
+            && let Some(home) = std::env::var_os("HOME")
+        {
+            return Some(home.to_string_lossy().into_owned());
+        } else if let Some(rest) = path.strip_prefix("~/")
+            && let Some(home) = std::env::var_os("HOME")
+        {
+            return Some(format!("{}/{rest}", home.to_string_lossy()));
         }
         Some(path)
     } else {
@@ -303,4 +302,3 @@ fn parse_absolute_executable(segment: &str) -> Option<(Option<PathBuf>, String)>
 fn try_canonicalize(path: &std::path::Path) -> Option<PathBuf> {
     std::fs::canonicalize(path).ok()
 }
-

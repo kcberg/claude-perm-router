@@ -1,5 +1,5 @@
-use claude_perm_router::parser::split_command;
 use claude_perm_router::parser::parse_command;
+use claude_perm_router::parser::split_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -34,8 +34,8 @@ fn split_pipe() {
 fn split_multi_pipe() {
     let parts = split_command("cd /foo && cmd1 | cmd2 | cmd3 && cmd4");
     assert_eq!(parts.len(), 5);
-    assert!(parts[2].is_pipe);  // cmd2
-    assert!(parts[3].is_pipe);  // cmd3
+    assert!(parts[2].is_pipe); // cmd2
+    assert!(parts[3].is_pipe); // cmd3
     assert!(!parts[4].is_pipe); // cmd4
 }
 
@@ -126,11 +126,21 @@ fn parse_git_c() {
 fn parse_git_c_independent_dirs() {
     let tmp1 = make_dir();
     let tmp2 = make_dir();
-    let cmd = format!("git -C {} status && git -C {} push", tmp1.path().display(), tmp2.path().display());
+    let cmd = format!(
+        "git -C {} status && git -C {} push",
+        tmp1.path().display(),
+        tmp2.path().display()
+    );
     let segs = parse_command(&cmd);
     assert_eq!(segs.len(), 2);
-    assert_eq!(segs[0].target_dir, Some(tmp1.path().canonicalize().unwrap()));
-    assert_eq!(segs[1].target_dir, Some(tmp2.path().canonicalize().unwrap()));
+    assert_eq!(
+        segs[0].target_dir,
+        Some(tmp1.path().canonicalize().unwrap())
+    );
+    assert_eq!(
+        segs[1].target_dir,
+        Some(tmp2.path().canonicalize().unwrap())
+    );
 }
 
 #[test]

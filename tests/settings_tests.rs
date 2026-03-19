@@ -11,12 +11,16 @@ fn create_settings(dir: &std::path::Path, filename: &str, content: &str) {
 #[test]
 fn load_from_direct_dir() {
     let tmp = TempDir::new().unwrap();
-    create_settings(tmp.path(), "settings.json", r#"{
+    create_settings(
+        tmp.path(),
+        "settings.json",
+        r#"{
         "permissions": {
             "allow": ["Bash(./gradlew:*)"],
             "deny": ["Bash(rm:*)"]
         }
-    }"#);
+    }"#,
+    );
 
     let perms = load_permissions(tmp.path()).unwrap();
     assert_eq!(perms.allow, vec!["Bash(./gradlew:*)"]);
@@ -28,9 +32,13 @@ fn load_from_direct_dir() {
 #[test]
 fn load_walks_up() {
     let tmp = TempDir::new().unwrap();
-    create_settings(tmp.path(), "settings.json", r#"{
+    create_settings(
+        tmp.path(),
+        "settings.json",
+        r#"{
         "permissions": { "allow": ["Bash(git *)"] }
-    }"#);
+    }"#,
+    );
 
     let subdir = tmp.path().join("src").join("deep");
     fs::create_dir_all(&subdir).unwrap();
@@ -42,12 +50,20 @@ fn load_walks_up() {
 #[test]
 fn merge_local_and_project() {
     let tmp = TempDir::new().unwrap();
-    create_settings(tmp.path(), "settings.json", r#"{
+    create_settings(
+        tmp.path(),
+        "settings.json",
+        r#"{
         "permissions": { "allow": ["Bash(git *)"] }
-    }"#);
-    create_settings(tmp.path(), "settings.local.json", r#"{
+    }"#,
+    );
+    create_settings(
+        tmp.path(),
+        "settings.local.json",
+        r#"{
         "permissions": { "allow": ["Bash(./gradlew:*)"], "deny": ["Bash(rm:*)"] }
-    }"#);
+    }"#,
+    );
 
     let perms = load_permissions(tmp.path()).unwrap();
     // Both allow lists merged
@@ -77,9 +93,13 @@ fn missing_permissions_key() {
 #[test]
 fn load_ask_rules() {
     let tmp = TempDir::new().unwrap();
-    create_settings(tmp.path(), "settings.json", r#"{
+    create_settings(
+        tmp.path(),
+        "settings.json",
+        r#"{
         "permissions": { "ask": ["Bash(npm publish)"] }
-    }"#);
+    }"#,
+    );
 
     let perms = load_permissions(tmp.path()).unwrap();
     assert_eq!(perms.ask, vec!["Bash(npm publish)"]);

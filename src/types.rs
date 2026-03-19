@@ -61,9 +61,18 @@ impl PermissionDecision {
 /// Result of evaluating a single segment against permissions
 #[derive(Debug, Clone, PartialEq)]
 pub enum SegmentResult {
-    Allowed { rule: String, settings_path: PathBuf },
-    Denied { rule: String, settings_path: PathBuf },
-    Ask { rule: String, settings_path: PathBuf },
+    Allowed {
+        rule: String,
+        settings_path: PathBuf,
+    },
+    Denied {
+        rule: String,
+        settings_path: PathBuf,
+    },
+    Ask {
+        rule: String,
+        settings_path: PathBuf,
+    },
     Unresolved,
 }
 
