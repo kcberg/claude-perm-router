@@ -75,13 +75,15 @@ cat <<'HOOK'
   }
 }
 HOOK
-echo ""
-read -p "Add hook to $SETTINGS_FILE automatically? [y/N] " -n 1 -r
-echo ""
+# Only prompt interactively if stdin is a terminal (not piped from curl)
+if [ -t 0 ]; then
+    echo ""
+    read -p "Add hook to $SETTINGS_FILE automatically? [y/N] " -n 1 -r
+    echo ""
 
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if [ ! -f "$SETTINGS_FILE" ]; then
-        cat > "$SETTINGS_FILE" <<'EOF'
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ ! -f "$SETTINGS_FILE" ]; then
+            cat > "$SETTINGS_FILE" <<'EOF'
 {
   "hooks": {
     "PreToolUse": [
@@ -99,11 +101,11 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   }
 }
 EOF
-        echo "Created $SETTINGS_FILE with hook configuration."
-    else
-        echo "Cannot safely auto-merge into existing $SETTINGS_FILE."
-        echo "Please add the hook configuration manually."
-        exit 1
+            echo "Created $SETTINGS_FILE with hook configuration."
+        else
+            echo "Cannot safely auto-merge into existing $SETTINGS_FILE."
+            echo "Please add the hook configuration manually."
+        fi
     fi
 fi
 
